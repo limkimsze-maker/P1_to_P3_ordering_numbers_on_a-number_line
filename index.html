@@ -1,0 +1,997 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+  <title>Order Numbers — Drag Markers + Drag & Drop Order (Random ↑ / ↓)</title>
+  <style>
+    :root{
+      --bg:#f6fbff;
+      --card:#ffffff;
+      --ink:#0f172a;
+      --muted:#64748b;
+      --good:#16a34a;
+      --bad:#e11d48;
+
+      --line:#0f172a;
+      --panel:#dff1f2;
+      --box:#e9f6e7;
+      --boxBorder:#a7f3d0;
+      --shadow:0 12px 28px rgba(2,6,23,.10);
+      --radius:22px;
+      --font: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+
+      --pad:18px;
+      --svgH: clamp(170px, 26vh, 230px);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family:var(--font);
+      background:
+        radial-gradient(1100px 520px at 20% 0%, #e0f2fe 0%, transparent 55%),
+        radial-gradient(900px 520px at 100% 25%, #dcfce7 0%, transparent 55%),
+        var(--bg);
+      color:var(--ink);
+
+      /* ✅ Safe-area padding for iOS/Android notches */
+      padding:
+        calc(var(--pad) + env(safe-area-inset-top))
+        calc(var(--pad) + env(safe-area-inset-right))
+        calc(var(--pad) + env(safe-area-inset-bottom))
+        calc(var(--pad) + env(safe-area-inset-left));
+
+      overscroll-behavior: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .wrap{max-width:980px;margin:0 auto}
+    .card{
+      background:var(--card);
+      border:1px solid #eef2ff;
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      overflow:hidden;
+    }
+    .header{
+      padding:16px 18px 12px;
+      border-bottom:1px solid #eef2ff;
+      display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;
+    }
+    .title{
+      font-weight:1000;
+      font-size:18px;
+      display:flex;align-items:center;gap:10px;
+    }
+    .controls{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+      justify-content:flex-end;
+    }
+    button{
+      appearance:none;border:0;
+      padding:10px 14px;border-radius:14px;
+      background:#0ea5e9;color:#fff;
+      font-weight:950;cursor:pointer;
+      box-shadow:0 10px 18px rgba(14,165,233,.25);
+      touch-action:manipulation;
+    }
+    button.secondary{
+      background:#f1f5f9;color:var(--ink);
+      box-shadow:none;border:1px solid #e2e8f0;
+    }
+    .mini{
+      display:flex;gap:8px;align-items:center;
+      padding:8px 10px;border:1px solid #e2e8f0;border-radius:14px;background:#fff;
+      font-weight:850;color:var(--muted);
+      max-width:100%;
+    }
+    .mini input, .mini select{
+      font:inherit;
+      padding:6px 8px;border-radius:10px;border:1px solid #e2e8f0;
+      color:var(--ink);background:#fff;outline:none;
+      max-width:100%;
+    }
+
+    .content{padding:18px}
+    .q{
+      font-size:clamp(18px,2.6vw,28px);
+      font-weight:1000;
+      line-height:1.18;
+      margin:0 0 14px;
+    }
+    .panel{
+      background:var(--panel);
+      border-radius:22px;
+      padding:16px 14px 12px;
+      border:1px solid rgba(15,23,42,.08);
+    }
+    #nl{
+      width:100%;
+      height:var(--svgH);
+      display:block;
+      touch-action:none; /* ✅ smooth marker drag on mobile */
+      user-select:none;
+      -webkit-user-select:none;
+    }
+    .hint{
+      margin:10px 2px 0;
+      color:var(--muted);
+      font-weight:850;
+      font-size:14px;
+      line-height:1.35;
+    }
+
+    .orderTitle{
+      margin:18px 0 10px;
+      font-size:clamp(16px,2.1vw,24px);
+      font-weight:1000;
+    }
+
+    .dropRow{
+      display:flex;
+      gap:12px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+    .dropSlot{
+      width:180px;
+      height:56px;
+      border-radius:14px;
+      border:2px solid var(--boxBorder);
+      background:var(--box);
+      display:grid;
+      place-items:center;
+      font-weight:1000;
+      font-size:22px;
+      color:#065f46;
+      position:relative;
+      user-select:none;
+      -webkit-user-select:none;
+
+      /* ✅ mobile drag targets */
+      touch-action:none;
+    }
+    .dropSlot.hot{ outline:3px dashed rgba(22,163,74,.55) }
+    .dropSlot.filled{ border-color:#34d399; background:#dcfce7; }
+    .comma{
+      font-weight:1000;
+      font-size:26px;
+      color:#0f172a;
+      margin:0 2px;
+    }
+
+    .bank{
+      margin-top:12px;
+      display:flex;
+      gap:12px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+    .chip{
+      min-width:120px;
+      height:52px;
+      border-radius:14px;
+      border:2px solid #c7f9d5;
+      background:#ffffff;
+      display:grid;
+      place-items:center;
+      font-weight:1000;
+      font-size:22px;
+      cursor:grab;
+      user-select:none;
+      -webkit-user-select:none;
+      box-shadow:0 10px 18px rgba(2,6,23,.06);
+
+      /* ✅ allows finger/stylus drag */
+      touch-action:none;
+    }
+    .chip:active{cursor:grabbing}
+    .chip.sel{
+      outline:4px solid rgba(14,165,233,.35);
+      border-color:#38bdf8;
+      transform:translateY(-1px);
+    }
+    .chip.used{
+      opacity:.55;
+      filter:grayscale(.12);
+    }
+
+    .msg{
+      margin-top:14px;
+      padding:12px 14px;
+      border-radius:16px;
+      border:1px solid #e2e8f0;
+      background:#f8fafc;
+      font-weight:950;
+      line-height:1.35;
+    }
+    .msg.good{background:#f0fdf4;border-color:#bbf7d0;color:#065f46}
+    .msg.bad{background:#fff1f2;border-color:#fecdd3;color:#9f1239}
+
+    .footerNote{
+      margin-top:14px;
+      color:#64748b;
+      font-weight:800;
+      font-size:13px;
+      text-align:right;
+    }
+
+    /* ✅ Floating drag ghost (works on mobile where HTML5 DnD often fails) */
+    .ghost{
+      position:fixed;
+      left:0; top:0;
+      transform:translate(-9999px,-9999px);
+      z-index:9999;
+      pointer-events:none;
+      padding:0;
+    }
+    .ghost .chip{
+      cursor:grabbing;
+      box-shadow:0 18px 40px rgba(2,6,23,.20);
+      transform:scale(1.02);
+    }
+    body.dragging{
+      /* helps reduce accidental scroll while dragging */
+      touch-action:none;
+    }
+
+    @media (max-width:720px){
+      :root{ --pad:12px; }
+      .content{padding:14px}
+      .controls{justify-content:flex-start}
+      .mini{
+        width:100%;
+        display:grid;
+        grid-template-columns: auto 1fr auto 1fr auto 1fr;
+        gap:8px;
+        align-items:center;
+      }
+      .mini input{width:100% !important}
+      .mini select{width:100%}
+    }
+    @media (max-width:560px){
+      .dropSlot{width:min(46vw,180px)}
+      .chip{min-width:min(44vw,160px)}
+      .comma{display:none}
+      .dropRow{gap:10px}
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="header">
+      <div class="title">
+        <div>
+          Order Numbers (Drag Markers + Drag &amp; Drop)
+          <div style="font-size:13px;font-weight:850;color:var(--muted);margin-top:4px">
+            Randomly asks for <b>increasing</b> or <b>decreasing</b> order.
+            <span style="display:inline-block;margin-left:8px">📱 On phones: drag chips OR tap a chip then tap a blank.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <div class="mini" title="Change range & step, then press Random Question">
+          <span>Range:</span>
+          <input id="minIn" type="number" value="4200" step="1" style="width:92px">
+          <span style="text-align:center">–</span>
+          <input id="maxIn" type="number" value="4300" step="1" style="width:92px">
+          <span>Step:</span>
+          <select id="stepIn">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="5">5</option>
+            <option value="10" selected>10</option>
+            <option value="20">20</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+            <option value="200">200</option>
+            <option value="250">250</option>
+            <option value="500">500</option>
+          </select>
+        </div>
+
+        <button id="newBtn" class="secondary" type="button">Random Question</button>
+        <button id="checkBtn" type="button">Check Answer</button>
+      </div>
+    </div>
+
+    <div class="content">
+      <p class="q" id="qText">Arrange the numbers 4290, 4240 and 4270 in increasing order.</p>
+
+      <div class="panel">
+        <svg id="nl" viewBox="0 0 900 210" role="img" aria-label="Number line" preserveAspectRatio="xMidYMid meet">
+          <rect x="0" y="0" width="900" height="210" rx="24" fill="rgba(255,255,255,.40)"></rect>
+
+          <line x1="70" y1="120" x2="830" y2="120" stroke="#0f172a" stroke-width="6" stroke-linecap="round"/>
+          <polygon points="60,120 78,109 78,131" fill="#0f172a"></polygon>
+          <polygon points="840,120 822,109 822,131" fill="#0f172a"></polygon>
+
+          <g id="ticks"></g>
+          <g id="labels"></g>
+
+          <g id="markerA" cursor="grab">
+            <rect id="rectA" x="0" y="18" width="150" height="44" rx="16" fill="#e9f6e7" stroke="#3f6212" stroke-width="3"></rect>
+            <text id="labelA" x="75" y="48" text-anchor="middle" font-size="24" font-weight="1000" fill="#14532d">4290</text>
+            <path d="M75 70 L75 102" stroke="#ec4899" stroke-width="6" stroke-linecap="round"></path>
+            <polygon points="75,110 66,96 84,96" fill="#ec4899"></polygon>
+          </g>
+
+          <g id="markerB" cursor="grab">
+            <rect id="rectB" x="0" y="18" width="150" height="44" rx="16" fill="#e9f6e7" stroke="#3f6212" stroke-width="3"></rect>
+            <text id="labelB" x="75" y="48" text-anchor="middle" font-size="24" font-weight="1000" fill="#14532d">4240</text>
+            <path d="M75 70 L75 102" stroke="#ec4899" stroke-width="6" stroke-linecap="round"></path>
+            <polygon points="75,110 66,96 84,96" fill="#ec4899"></polygon>
+          </g>
+
+          <g id="markerC" cursor="grab">
+            <rect id="rectC" x="0" y="142" width="150" height="44" rx="16" fill="#e9f6e7" stroke="#3f6212" stroke-width="3"></rect>
+            <text id="labelC" x="75" y="172" text-anchor="middle" font-size="24" font-weight="1000" fill="#14532d">4270</text>
+            <path d="M75 140 L75 120" stroke="#ec4899" stroke-width="6" stroke-linecap="round"></path>
+            <polygon points="75,112 66,126 84,126" fill="#ec4899"></polygon>
+          </g>
+        </svg>
+
+        <div class="hint">
+          Tip: Each small tick is <b id="stepLbl">10</b>. Ends are <b id="minLbl">4200</b> and <b id="maxLbl">4300</b>.
+          Drag each green box to the correct place. (On phones: use one finger/stylus.)
+        </div>
+      </div>
+
+      <div class="orderTitle" id="orderTitle">The numbers in increasing order are:</div>
+
+      <div class="dropRow" aria-label="Drop the numbers into order">
+        <div class="dropSlot" data-slot="0" role="button" aria-label="slot 1">_____</div>
+        <div class="comma">,</div>
+        <div class="dropSlot" data-slot="1" role="button" aria-label="slot 2">_____</div>
+        <div class="comma">,</div>
+        <div class="dropSlot" data-slot="2" role="button" aria-label="slot 3">_____</div>
+      </div>
+
+      <div class="bank" id="bank" aria-label="Drag these numbers into the blanks"></div>
+
+      <div id="msg" class="msg">
+        Drag the markers, then drag the numbers into the blanks. Press <b>Check Answer</b>.
+      </div>
+
+      <div class="footerNote">Designed by Lim Kim Sze © 2026</div>
+    </div>
+  </div>
+</div>
+
+<!-- ✅ Drag ghost (for mobile-friendly drag) -->
+<div class="ghost" id="ghost" aria-hidden="true"></div>
+
+<script>
+(() => {
+  // Number line geometry (viewBox)
+  const X1 = 70, X2 = 830, Y = 120;
+
+  const svg = document.getElementById('nl');
+  const ticksG = document.getElementById('ticks');
+  const labelsG = document.getElementById('labels');
+
+  const markerA = document.getElementById('markerA');
+  const markerB = document.getElementById('markerB');
+  const markerC = document.getElementById('markerC');
+  const labelA  = document.getElementById('labelA');
+  const labelB  = document.getElementById('labelB');
+  const labelC  = document.getElementById('labelC');
+
+  const rectA = document.getElementById('rectA');
+  const rectB = document.getElementById('rectB');
+  const rectC = document.getElementById('rectC');
+
+  const qText = document.getElementById('qText');
+  const orderTitle = document.getElementById('orderTitle');
+  const msg = document.getElementById('msg');
+
+  const minLbl = document.getElementById('minLbl');
+  const maxLbl = document.getElementById('maxLbl');
+  const stepLbl = document.getElementById('stepLbl');
+
+  const minIn = document.getElementById('minIn');
+  const maxIn = document.getElementById('maxIn');
+  const stepIn = document.getElementById('stepIn');
+
+  const newBtn = document.getElementById('newBtn');
+  const checkBtn = document.getElementById('checkBtn');
+
+  const bank = document.getElementById('bank');
+  const slots = [...document.querySelectorAll('.dropSlot')];
+
+  const ghost = document.getElementById('ghost');
+
+  let MIN = 4200, MAX = 4300, STEP = 10;
+
+  // 3 target numbers
+  let nums = [4290, 4240, 4270];
+
+  // random prompt: "increasing" or "decreasing"
+  let orderMode = "increasing";
+
+  // responsive marker width
+  let MARKER_W = 150;
+
+  const state = {
+    A: { value: MIN, dragging:false, pointerId:null },
+    B: { value: MIN, dragging:false, pointerId:null },
+    C: { value: MIN, dragging:false, pointerId:null },
+  };
+
+  const clamp = (n,a,b)=>Math.max(a,Math.min(b,n));
+  const snap  = (v)=>Math.round((v - MIN)/STEP)*STEP + MIN;
+
+  function isSmall(){
+    return Math.min(window.innerWidth || 9999, document.documentElement.clientWidth || 9999) <= 420;
+  }
+
+  function applyMarkerSizing(){
+    MARKER_W = isSmall() ? 130 : 150;
+
+    const textSize = isSmall() ? 22 : 24;
+    const cx = MARKER_W / 2;
+
+    [rectA, rectB, rectC].forEach(r => r.setAttribute('width', String(MARKER_W)));
+    [labelA, labelB, labelC].forEach(t => {
+      t.setAttribute('x', String(cx));
+      t.setAttribute('font-size', String(textSize));
+    });
+
+    setMarker(markerA,'A', state.A.value);
+    setMarker(markerB,'B', state.B.value);
+    setMarker(markerC,'C', state.C.value);
+
+    drawNumberLine();
+  }
+
+  function valueToX(v){
+    const t = (v - MIN) / (MAX - MIN);
+    return X1 + t*(X2 - X1);
+  }
+  function xToValue(x){
+    const t = (x - X1) / (X2 - X1);
+    return MIN + t*(MAX - MIN);
+  }
+
+  function setMarker(group, which, v){
+    v = clamp(snap(v), MIN, MAX);
+    state[which].value = v;
+
+    const cx = valueToX(v);
+    const gx = clamp(cx - MARKER_W/2, X1 - MARKER_W/2, X2 - MARKER_W/2);
+    group.setAttribute('transform', `translate(${gx} 0)`);
+
+    const localX = cx - gx;
+    const path = group.querySelector('path');
+    const poly = group.querySelector('polygon');
+
+    const isUp = group.id === 'markerC';
+    if(isUp){
+      path.setAttribute('d', `M${localX} 140 L${localX} 120`);
+      poly.setAttribute('points', `${localX},112 ${localX-9},126 ${localX+9},126`);
+    }else{
+      path.setAttribute('d', `M${localX} 70 L${localX} 102`);
+      poly.setAttribute('points', `${localX},110 ${localX-9},96 ${localX+9},96`);
+    }
+  }
+
+  function drawNumberLine(){
+    ticksG.innerHTML = '';
+    labelsG.innerHTML = '';
+
+    const stepsCount = Math.round((MAX - MIN)/STEP);
+    const majorEvery = Math.max(1, Math.round(stepsCount/10));
+
+    const small = isSmall();
+    const labelFont = small ? 22 : 34;
+
+    for(let i=0;i<=stepsCount;i++){
+      const v = MIN + i*STEP;
+      const x = valueToX(v);
+
+      const isMajor = (i === 0) || (i === stepsCount) || (i % majorEvery === 0);
+
+      const h = isMajor ? 28 : 18;
+      const w = isMajor ? 6 : 5;
+
+      const tick = document.createElementNS("http://www.w3.org/2000/svg","line");
+      tick.setAttribute('x1', x);
+      tick.setAttribute('x2', x);
+      tick.setAttribute('y1', Y - h/2);
+      tick.setAttribute('y2', Y + h/2);
+      tick.setAttribute('stroke', '#0f172a');
+      tick.setAttribute('stroke-width', w);
+      tick.setAttribute('stroke-linecap','round');
+      ticksG.appendChild(tick);
+
+      if(isMajor && (i === 0 || i === stepsCount || i === Math.round(stepsCount/2))){
+        const t = document.createElementNS("http://www.w3.org/2000/svg","text");
+        t.setAttribute('x', x);
+        t.setAttribute('y', 185);
+        t.setAttribute('text-anchor', 'middle');
+        t.setAttribute('font-size', String(labelFont));
+        t.setAttribute('font-weight', '1000');
+        t.setAttribute('fill', '#0f172a');
+        t.textContent = v;
+        labelsG.appendChild(t);
+      }
+    }
+
+    minLbl.textContent = MIN;
+    maxLbl.textContent = MAX;
+    stepLbl.textContent = STEP;
+  }
+
+  function pointerToSvgX(evt){
+    const pt = svg.createSVGPoint();
+    pt.x = evt.clientX;
+    pt.y = evt.clientY;
+    const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
+    return svgP.x;
+  }
+
+  function attachDrag(group, which){
+    group.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      group.setPointerCapture(e.pointerId);
+      state[which].dragging = true;
+      state[which].pointerId = e.pointerId;
+      group.setAttribute('cursor','grabbing');
+    });
+
+    group.addEventListener('pointermove', (e) => {
+      if(!state[which].dragging) return;
+      setMarker(group, which, xToValue(pointerToSvgX(e)));
+    });
+
+    const end = (e) => {
+      if(state[which].pointerId !== e.pointerId) return;
+      state[which].dragging = false;
+      state[which].pointerId = null;
+      group.setAttribute('cursor','grab');
+    };
+    group.addEventListener('pointerup', end);
+    group.addEventListener('pointercancel', end);
+    group.addEventListener('lostpointercapture', () => {
+      state[which].dragging = false;
+      state[which].pointerId = null;
+      group.setAttribute('cursor','grab');
+    });
+  }
+
+  // --- Ordering (mobile-friendly pointer drag) ---
+  let selectedChipEl = null;
+
+  function clearSlots(){
+    slots.forEach(s=>{
+      s.textContent = "_____";
+      s.dataset.value = "";
+      s.classList.remove('hot','filled');
+      s.style.outline = "none";
+    });
+  }
+
+  function shuffle(arr){
+    const a = arr.slice();
+    for(let i=a.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [a[i],a[j]] = [a[j],a[i]];
+    }
+    return a;
+  }
+
+  function updateChipUsedStates(){
+    const used = new Set(slots.map(s=>s.dataset.value).filter(Boolean));
+    [...bank.querySelectorAll('.chip')].forEach(ch=>{
+      const v = ch.dataset.value;
+      ch.classList.toggle('used', used.has(v));
+    });
+  }
+
+  function deselectChip(){
+    if(selectedChipEl) selectedChipEl.classList.remove('sel');
+    selectedChipEl = null;
+  }
+
+  function selectChip(chip){
+    if(selectedChipEl === chip){
+      deselectChip();
+      return;
+    }
+    deselectChip();
+    selectedChipEl = chip;
+    chip.classList.add('sel');
+  }
+
+  function clearSlot(slot){
+    slot.dataset.value = "";
+    slot.textContent = "_____";
+    slot.classList.remove('filled');
+  }
+
+  function placeValueInSlot(slot, val){
+    // If val already in another slot, swap
+    const from = slots.find(s => s.dataset.value === val);
+    if(from && from !== slot){
+      const tmpVal = slot.dataset.value || "";
+      const tmpText = slot.textContent;
+
+      slot.dataset.value = val;
+      slot.textContent = val;
+      slot.classList.add('filled');
+
+      from.dataset.value = tmpVal;
+      from.textContent = tmpVal ? tmpText : "_____";
+      from.classList.toggle('filled', !!tmpVal);
+    }else{
+      slot.dataset.value = val;
+      slot.textContent = val;
+      slot.classList.add('filled');
+    }
+    updateChipUsedStates();
+  }
+
+  function renderBank(){
+    bank.innerHTML = "";
+    const mixed = shuffle(nums);
+    mixed.forEach((n) => {
+      const chip = document.createElement('div');
+      chip.className = 'chip';
+      chip.textContent = n;
+      chip.dataset.value = String(n);
+      bank.appendChild(chip);
+    });
+    updateChipUsedStates();
+  }
+
+  // ✅ Pointer drag chips (works on stylus/finger + mouse)
+  const drag = {
+    active:false,
+    pid:null,
+    startX:0,startY:0,
+    moved:false,
+    value:"",
+    source:"bank", // "bank" | "slot"
+    sourceSlot:null,
+    ghostChip:null,
+    originEl:null
+  };
+
+  function showGhost(val, x, y){
+    ghost.innerHTML = "";
+    const gChip = document.createElement('div');
+    gChip.className = "chip";
+    gChip.textContent = val;
+    ghost.appendChild(gChip);
+    drag.ghostChip = gChip;
+    moveGhost(x,y);
+  }
+  function moveGhost(x,y){
+    ghost.style.transform = `translate(${x}px, ${y}px) translate(-50%, -60%)`;
+  }
+  function hideGhost(){
+    ghost.style.transform = `translate(-9999px,-9999px)`;
+    ghost.innerHTML = "";
+    drag.ghostChip = null;
+  }
+
+  function slotAtPoint(clientX, clientY){
+    const el = document.elementFromPoint(clientX, clientY);
+    if(!el) return null;
+    return el.closest ? el.closest('.dropSlot') : null;
+  }
+
+  function highlightSlot(slot){
+    slots.forEach(s=>s.classList.toggle('hot', s===slot));
+  }
+  function clearSlotHighlights(){
+    slots.forEach(s=>s.classList.remove('hot'));
+  }
+
+  function beginChipDrag(e, chipEl, source, sourceSlot){
+    drag.active = true;
+    drag.pid = e.pointerId;
+    drag.startX = e.clientX;
+    drag.startY = e.clientY;
+    drag.moved = false;
+    drag.value = chipEl.dataset.value || "";
+    drag.source = source;
+    drag.sourceSlot = sourceSlot || null;
+    drag.originEl = chipEl;
+
+    // capture pointer so drag stays smooth
+    chipEl.setPointerCapture?.(e.pointerId);
+
+    document.body.classList.add('dragging');
+  }
+
+  function endChipDrag(){
+    drag.active = false;
+    drag.pid = null;
+    drag.moved = false;
+    drag.value = "";
+    drag.source = "bank";
+    drag.sourceSlot = null;
+    drag.originEl = null;
+
+    hideGhost();
+    clearSlotHighlights();
+    document.body.classList.remove('dragging');
+  }
+
+  // Attach chip handlers (bank) each time after render
+  function wireBankChips(){
+    [...bank.querySelectorAll('.chip')].forEach(chip=>{
+      chip.addEventListener('pointerdown', (e)=>{
+        // allow tap-select AND drag; we decide on move threshold
+        e.preventDefault();
+        beginChipDrag(e, chip, "bank", null);
+      });
+
+      chip.addEventListener('pointermove', (e)=>{
+        if(!drag.active || drag.pid !== e.pointerId || drag.originEl !== chip) return;
+
+        const dx = e.clientX - drag.startX;
+        const dy = e.clientY - drag.startY;
+        const dist = Math.hypot(dx,dy);
+
+        if(!drag.moved && dist > 6){
+          drag.moved = true;
+          showGhost(drag.value, e.clientX, e.clientY);
+        }
+        if(drag.moved){
+          moveGhost(e.clientX, e.clientY);
+          const s = slotAtPoint(e.clientX, e.clientY);
+          highlightSlot(s);
+        }
+      });
+
+      chip.addEventListener('pointerup', (e)=>{
+        if(!drag.active || drag.pid !== e.pointerId || drag.originEl !== chip) return;
+
+        if(!drag.moved){
+          // treat as tap-select
+          selectChip(chip);
+          msg.className = 'msg';
+          msg.textContent = "Now tap a blank to place the selected number. Tap the blank again to clear it.";
+          endChipDrag();
+          return;
+        }
+
+        const s = slotAtPoint(e.clientX, e.clientY);
+        if(s && drag.value){
+          placeValueInSlot(s, drag.value);
+          deselectChip();
+        }
+        endChipDrag();
+      });
+
+      chip.addEventListener('pointercancel', ()=> endChipDrag());
+      chip.addEventListener('lostpointercapture', ()=> endChipDrag());
+    });
+  }
+
+  // Allow dragging from filled slots too (reposition by drag)
+  function wireSlots(){
+    slots.forEach(slot=>{
+      slot.addEventListener('pointerdown', (e)=>{
+        // If filled, allow drag-out; if blank, we'll just do tap logic in click handler
+        if(!slot.dataset.value) return;
+        e.preventDefault();
+        // create a temporary chip-like origin (use slot itself)
+        const fake = slot; fake.dataset.value = slot.dataset.value;
+        beginChipDrag(e, fake, "slot", slot);
+      });
+
+      slot.addEventListener('pointermove', (e)=>{
+        if(!drag.active || drag.pid !== e.pointerId) return;
+        if(drag.source !== "slot") return;
+
+        const dx = e.clientX - drag.startX;
+        const dy = e.clientY - drag.startY;
+        const dist = Math.hypot(dx,dy);
+
+        if(!drag.moved && dist > 6){
+          drag.moved = true;
+          showGhost(drag.value, e.clientX, e.clientY);
+        }
+        if(drag.moved){
+          moveGhost(e.clientX, e.clientY);
+          const s = slotAtPoint(e.clientX, e.clientY);
+          highlightSlot(s);
+        }
+      });
+
+      slot.addEventListener('pointerup', (e)=>{
+        if(!drag.active || drag.pid !== e.pointerId) return;
+        if(drag.source !== "slot") return;
+
+        // If it was basically a tap, don't do drag-drop here (slot click handles)
+        if(!drag.moved){
+          endChipDrag();
+          return;
+        }
+
+        const dropTarget = slotAtPoint(e.clientX, e.clientY);
+        if(dropTarget && drag.value){
+          // drop onto another slot (swap handled inside)
+          placeValueInSlot(dropTarget, drag.value);
+
+          // If dropped onto itself, no change.
+          // If dropped elsewhere, and original slot still shows same value AND swap didn't clear it,
+          // clear the original slot only when the value moved to a different slot and wasn't swapped back.
+          if(drag.sourceSlot && dropTarget !== drag.sourceSlot){
+            // If the original slot still has the dragged value, clear it (it wasn't swapped)
+            if(drag.sourceSlot.dataset.value === drag.value){
+              clearSlot(drag.sourceSlot);
+            }
+            updateChipUsedStates();
+          }
+        }else{
+          // dropped nowhere -> return to bank (clear origin slot)
+          if(drag.sourceSlot){
+            clearSlot(drag.sourceSlot);
+            updateChipUsedStates();
+          }
+        }
+        deselectChip();
+        endChipDrag();
+      });
+
+      slot.addEventListener('pointercancel', ()=> endChipDrag());
+      slot.addEventListener('lostpointercapture', ()=> endChipDrag());
+
+      // Tap-to-place / tap-to-clear (kept)
+      slot.addEventListener('click', () => {
+        if(selectedChipEl && selectedChipEl.dataset.value){
+          placeValueInSlot(slot, selectedChipEl.dataset.value);
+          deselectChip();
+          return;
+        }
+        // no chip selected: clear
+        clearSlot(slot);
+        updateChipUsedStates();
+      });
+    });
+  }
+
+  function getSlotValues(){
+    return slots.map(s => s.dataset.value ? Number(s.dataset.value) : null);
+  }
+
+  // --- Question generation ---
+  function pickOrderMode(){
+    orderMode = (Math.random() < 0.5) ? "increasing" : "decreasing";
+  }
+
+  function setPromptText(){
+    const a = nums[0], b = nums[1], c = nums[2];
+    qText.textContent = `Arrange the numbers ${a}, ${b} and ${c} in ${orderMode} order.`;
+    orderTitle.textContent = `The numbers in ${orderMode} order are:`;
+  }
+
+  function setNumbersAndMarkers(n1,n2,n3){
+    nums = [n1,n2,n3];
+    labelA.textContent = String(nums[0]);
+    labelB.textContent = String(nums[1]);
+    labelC.textContent = String(nums[2]);
+
+    const count = Math.floor((MAX - MIN)/STEP) + 1;
+    const start = () => MIN + Math.floor(Math.random()*count)*STEP;
+
+    setMarker(markerA,'A', start());
+    setMarker(markerB,'B', start());
+    setMarker(markerC,'C', start());
+  }
+
+  function randomDistinctValues(){
+    const count = Math.floor((MAX - MIN)/STEP) + 1;
+    if(count < 3){
+      MAX = MIN + STEP*10;
+      maxIn.value = MAX;
+    }
+    const picks = new Set();
+    while(picks.size < 3){
+      const v = MIN + Math.floor(Math.random()*count)*STEP;
+      picks.add(v);
+    }
+    return [...picks];
+  }
+
+  function newQuestion(){
+    let min = parseInt(minIn.value,10);
+    let max = parseInt(maxIn.value,10);
+    let step = parseInt(stepIn.value,10);
+
+    if(!Number.isFinite(min)) min = 0;
+    if(!Number.isFinite(step) || step <= 0) step = 10;
+    if(!Number.isFinite(max) || max <= min) max = min + step*10;
+    if((max - min) < step*3) max = min + step*10;
+
+    const alignDown = (v)=>Math.floor(v/step)*step;
+    const alignUp = (v)=>Math.ceil(v/step)*step;
+    min = alignDown(min);
+    max = alignUp(max);
+
+    MIN = min; MAX = max; STEP = step;
+
+    drawNumberLine();
+    pickOrderMode();
+
+    const vals = randomDistinctValues();
+    setNumbersAndMarkers(vals[0], vals[1], vals[2]);
+
+    setPromptText();
+    clearSlots();
+
+    renderBank();
+    wireBankChips();
+    deselectChip();
+
+    msg.className = 'msg';
+    msg.textContent = "Drag the markers, then drag the number chips into the blanks. (On phones: drag OR tap a chip, then tap a blank.)";
+  }
+
+  function expectedOrder(){
+    const sorted = nums.slice().sort((a,b)=>a-b);
+    return (orderMode === "increasing") ? sorted : sorted.slice().reverse();
+  }
+
+  function markersCorrect(){
+    return state.A.value === nums[0] && state.B.value === nums[1] && state.C.value === nums[2];
+  }
+
+  function orderingCorrect(){
+    const got = getSlotValues();
+    if(got.some(v => v === null)) return false;
+    const exp = expectedOrder();
+    return got[0] === exp[0] && got[1] === exp[1] && got[2] === exp[2];
+  }
+
+  function check(){
+    const okM = markersCorrect();
+    const okO = orderingCorrect();
+    const exp = expectedOrder();
+
+    if(okM && okO){
+      msg.className = 'msg good';
+      msg.textContent = `✅ Correct! The numbers in ${orderMode} order are ${exp[0]}, ${exp[1]}, ${exp[2]}. Well done!`;
+    }else{
+      msg.className = 'msg bad';
+      const hints = [];
+      if(!okM) hints.push(`Check your marker positions (each tick is ${STEP}).`);
+      if(!okO) hints.push(`Check the order in the blanks.`);
+      msg.textContent = `❌ Not yet. ${hints.join(' ')}`;
+    }
+  }
+
+  // init wiring
+  wireSlots();
+  attachDrag(markerA,'A');
+  attachDrag(markerB,'B');
+  attachDrag(markerC,'C');
+
+  newBtn.addEventListener('click', newQuestion);
+  checkBtn.addEventListener('click', check);
+
+  window.addEventListener('resize', () => applyMarkerSizing(), {passive:true});
+
+  // start
+  drawNumberLine();
+  pickOrderMode();
+  setNumbersAndMarkers(4290, 4240, 4270);
+  setPromptText();
+  clearSlots();
+  renderBank();
+  wireBankChips();
+  applyMarkerSizing();
+})();
+</script>
+</body>
+</html>
